@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Arcade Pinball</title>
+    <!-- Tailwind CSS for sleek UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+        .arcade-font {
+            font-family: 'Press Start 2P', monospace;
+        }
+        canvas {
+            background: radial-gradient(circle at center, #1e1b4b 0%, #09090b 100%);
+            box-shadow: 0 0 30px rgba(99, 102, 241, 0.3), inset 0 0 50px rgba(0, 0, 0, 0.8);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-4 md:p-6">
+
+    <!-- Header Section -->
+    <header class="text-center mb-2">
+        <h1 class="arcade-font text-2xl md:text-3xl text-yellow-400 tracking-wider drop-shadow-[0_2px_10px_rgba(234,179,8,0.5)]">
+            RETRO PINBALL
+        </h1>
+        <p class="text-xs md:text-sm text-slate-400 mt-1">Use Left/Right Arrow Keys or Touch Buttons to play</p>
+    </header>
+
+    <!-- Main Game Container -->
+    <div class="relative flex flex-col items-center max-w-md w-full bg-slate-900 border-4 border-indigo-500/50 rounded-2xl shadow-2xl p-3 md:p-4">
+        
+        <!-- Scoreboard Bar -->
+        <div class="w-full flex justify-between items-center bg-slate-950 px-4 py-2 rounded-xl mb-3 border border-indigo-500/30">
+            <div>
+                <span class="text-xs text-slate-400 block arcade-font">SCORE</span>
+                <span id="scoreDisplay" class="arcade-font text-lg md:text-xl text-emerald-400">000000</span>
+            </div>
+            <div class="text-center">
+                <span class="text-xs text-slate-400 block arcade-font">BALLS</span>
+                <span id="ballsDisplay" class="arcade-font text-lg md:text-xl text-yellow-400">3</span>
+            </div>
+            <div>
+                <span class="text-xs text-slate-400 block arcade-font">HI-SCORE</span>
+                <span id="highScoreDisplay" class="arcade-font text-lg md:text-xl text-pink-400">000000</span>
+            </div>
+        </div>
+
+        <!-- Canvas for Pinball Board -->
+        <div class="relative w-full aspect-[3/4] max-h-[500px] overflow-hidden rounded-xl border-2 border-indigo-900">
+            <canvas id="pinballCanvas" class="w-full h-full block"></canvas>
+
+            <!-- Game Over / Start Overlay -->
+            <div id="overlay" class="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 transition-all duration-300">
+                <h2 id="overlayTitle" class="arcade-font text-xl md:text-2xl text-yellow-400 mb-4 animate-pulse">PINBALL ARCADE</h2>
+                <p id="overlayText" class="text-xs md:text-sm text-slate-300 mb-6 max-w-xs leading-relaxed">
+                    Shoot the ball up, hit bumpers, use flippers to rack up massive combos and high scores!
+                </p>
+                <button id="startBtn" class="arcade-font bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 text-xs md:text-sm font-bold py-3 px-6 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.5)] transform active:scale-95 transition-all">
+                    START GAME
+                </button>
+            </div>
+        </div>
+
+        <!-- Touch Controls for Mobile / Mouse -->
+        <div class="w-full grid grid-cols-2 gap-4 mt-4">
+            <button id="leftFlipperBtn" class="bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-400 text-white font-bold py-3 rounded-xl shadow-lg border-b-4 border-indigo-800 active:border-b-0 active:translate-y-1 transition-all text-sm arcade-font">
+                ◀ LEFT FLIP
+            </button>
+            <button id="rightFlipperBtn" class="bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-400 text-white font-bold py-3 rounded-xl shadow-lg border-b-4 border-indigo-800 active:border-b-0 active:translate-y-1 transition-all text-sm arcade-font">
+                RIGHT FLIP ▶
+            </button>
+        </div>
+
+        <!-- Launcher / Plunger Control bar -->
+        <div class="w-full mt-3 flex items-center justify-between bg-slate-950 px-4 py-2 rounded-xl border border-indigo-500/30">
+            <span class="text-xs text-slate-400 arcade-font">LAUNCHER SPRING</span>
+            <button id="launchBtn" class="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 arcade-font text-xs font-bold py-2 px-4 rounded-lg shadow-md active:scale-95 transition-all">
+                PULL & SHOOT
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer Note -->
+    <footer class="mt-4 text-center text-xs text-slate-500">
+        Retro Arcade Pinball Simulator &bull; Built with HTML5 Canvas & Tailwind CSS
+    </footer>
+
+    <!-- Game Logic Script -->
+    <script>
+        window.onload = function () {
+            const canvas = document.getElementById('pinballCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // Set internal canvas coordinate dimensions (Logical width: 400, height: 600)
+            const LOGICAL_WIDTH = 400;
+            const LOGICAL_HEIGHT = 600;
+            canvas.width = LOGICAL_WIDTH;
+            canvas.height = LOGICAL_HEIGHT;
+
+            // DOM Elements
+            const scoreDisplay = document.getElementById('scoreDisplay');
+            const ballsDisplay = document.getElementById('ballsDisplay');
+            const highScoreDisplay = document.getElementById('highScoreDisplay');
+            const overlay = document.getElementById('overlay');
+            const overlayTitle = document.getElementById('overlayTitle');
+            const overlayText = document.getElementById('overlayText');
+            const startBtn = document.getElementById('startBtn');
+            const leftFlipperBtn = document.getElementById('leftFlipperBtn');
+            const rightFlipperBtn = document.getElementById('rightFlipperBtn');
+            const launchBtn = document.getElementById('launchBtn');
+
+            // Game State Variables
+            let score = 0;
+            let highScore = localStorage.getItem('pinball_highscore') || 0;
+            let ballsLeft = 3;
+            let gameState = 'START'; // 'START', 'PLAYING', 'GAMEOVER'
+
+            highScoreDisplay.textContent = String(highScore).padStart(6, '0');
+
+            // Ball Object
+            let ball = {
+                x: 370,
+                y: 500,
+                vx: 0,
+                vy: 0,
+                radius: 10,
+                speed: 0,
+                active: false
+            };
+
+            // Plunger power when holding
+            let plungerPower = 0;
+            let isPullingPlunger = false;
+
+            // Bumpers configuration
+            const bumpers = [
+                { x: 130, y: 150, radius: 22, color: '#ec4899', points: 100 },
+                { x: 270, y: 150, radius: 22, color: '#ec4899', points: 100 },
+                { x: 200, y: 240, radius: 26, color: '#eab308', points: 250 },
+                { x: 120, y: 320, radius: 18, color: '#38bdf8', points: 150 },
+                { x: 280, y: 320, radius: 18, color: '#38bdf8', points: 150 }
+            ];
+
+            // Obstacles / Slanted Walls
+            const obstacles = [
+                // Top guides
+                { x1: 50, y1: 80, x2: 130, y2: 40 },
+                { x1: 350, y1: 80, x2: 270, y2: 40 },
+                // Lower funnel guides towards flippers
+                { x1: 20, y1: 420, x2: 110, y2: 490 },
+                { x1: 340, y1: 420, x2: 250, y2: 490 }
+            ];
+
+            // Flippers configuration
+            const flippers = {
+                left: {
+                    x: 130,
+                    y: 520,
+                    length: 75,
+                    angle: 0.35,          // Rest angle (radians downwards)
+                    restAngle: 0.35,
+                    activeAngle: -0.45,   // Flipped up angle
+                    angularSpeed: 0.25,
+                    isPressed: false
+                },
+                right: {
+                    x: 230,
+                    y: 520,
+                    length: 75,
+                    angle: Math.PI - 0.35,          // Rest angle
+                    restAngle: Math.PI - 0.35,
+                    activeAngle: Math.PI + 0.45,    // Flipped up angle
+                    angularSpeed: 0.25,
+                    isPressed: false
+                }
+            };
+
+            // Keyboard tracking
+            const keys = {
+                left: false,
+                right: false,
+                space: false
+            };
+
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'ArrowLeft') { keys.left = true; flippers.left.isPressed = true; }
+                if (e.code === 'ArrowRight') { keys.right = true; flippers.right.isPressed = true; }
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    if (!ball.active && gameState === 'PLAYING' && !isPullingPlunger) {
+                        isPullingPlunger = true;
+                        plungerPower = 5;
+                    }
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (e.code === 'ArrowLeft') { keys.left = false; flippers.left.isPressed = false; }
+                if (e.code === 'ArrowRight') { keys.right = false; flippers.right.isPressed = false; }
+                if (e.code === 'Space') {
+                    if (isPullingPlunger) {
+                        releasePlunger();
+                    }
+                }
+            });
+
+            // Touch / Mouse button handlers for UI flippers
+            function bindTouchButton(btn, flipperKey) {
+                const press = (e) => { e.preventDefault(); flippers[flipperKey].isPressed = true; };
+                const release = (e) => { e.preventDefault(); flippers[flipperKey].isPressed = false; };
+                btn.addEventListener('mousedown', press);
+                btn.addEventListener('mouseup', release);
+                btn.addEventListener('mouseleave', release);
+                btn.addEventListener('touchstart', press);
+                btn.addEventListener('touchend', release);
+            }
+
+            bindTouchButton(leftFlipperBtn, 'left');
+            bindTouchButton(rightFlipperBtn, 'right');
+
+            launchBtn.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                if (!ball.active && gameState === 'PLAYING') {
+                    isPullingPlunger = true;
+                    plungerPower = 5;
+                }
+            });
+            launchBtn.addEventListener('mouseup', (e) => {
+                e.preventDefault();
+                if (isPullingPlunger) releasePlunger();
+            });
+            launchBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (!ball.active && gameState === 'PLAYING') {
+                    isPullingPlunger = true;
+                    plungerPower = 5;
+                }
+            });
+            launchBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (isPullingPlunger) releasePlunger();
+            });
+
+            function releasePlunger() {
+                isPullingPlunger = false;
+                ball.vy = -plungerPower * 3.5;
+                ball.vx = (Math.random() - 0.5) * 2;
+                ball.active = true;
+                plungerPower = 0;
+            }
+
+            startBtn.addEventListener('click', () => {
+                startGame();
+            });
+
+            function startGame() {
+                score = 0;
+                ballsLeft = 3;
+                scoreDisplay.textContent = '000000';
+                ballsDisplay.textContent = ballsLeft;
+                gameState = 'PLAYING';
+                overlay.classList.add('opacity-0', 'pointer-events-none');
+                resetBall();
+            }
+
+            function resetBall() {
+                ball.x = 370;
+                ball.y = 500;
+                ball.vx = 0;
+                ball.vy = 0;
+                ball.active = false;
+            }
+
+            function gameOver() {
+                gameState = 'GAMEOVER';
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('pinball_highscore', highScore);
+                    highScoreDisplay.textContent = String(highScore).padStart(6, '0');
+                }
+                overlayTitle.textContent = "GAME OVER";
+                overlayText.textContent = `Final Score: ${score}\nGreat effort! Press below to play again.`;
+                startBtn.textContent = "PLAY AGAIN";
+                overlay.classList.remove('opacity-0', 'pointer-events-none');
+            }
+
+            // Physics Update Loop
+            function update() {
+                if (gameState !== 'PLAYING') return;
+
+                // Handle plunger charge
+                if (isPullingPlunger) {
+                    plungerPower = Math.min(plungerPower + 0.4, 18);
+                    ball.y = 500 + plungerPower * 2;
+                }
+
+                if (ball.active) {
+                    // Apply gravity & friction
+                    ball.vy += 0.22;
+                    ball.vx *= 0.995;
+                    ball.vy *= 0.995;
+
+                    ball.x += ball.vx;
+                    ball.y += ball.vy;
+
+                    // Wall Collisions (Bounds: 20 to 350 for main playfield, right alley around 360-380)
+                    if (ball.x - ball.radius < 20) {
+                        ball.x = 20 + ball.radius;
+                        ball.vx = -ball.vx * 0.8;
+                    }
+                    // Right wall boundary (excluding launch lane divider if ball is high up)
+                    let rightLimit = (ball.y < 460) ? 350 : 385;
+                    if (ball.x + ball.radius > rightLimit) {
+                        ball.x = rightLimit - ball.radius;
+                        ball.vx = -ball.vx * 0.8;
+                    }
+                    if (ball.y - ball.radius < 30) {
+                        ball.y = 30 + ball.radius;
+                        ball.vy = -ball.vy * 0.8;
+                    }
+
+                    // Bottom out / Drain check
+                    if (ball.y > LOGICAL_HEIGHT + 30) {
+                        ballsLeft--;
+                        ballsDisplay.textContent = ballsLeft;
+                        if (ballsLeft <= 0) {
+                            gameOver();
+                        } else {
+                            resetBall();
+                        }
+                    }
+
+                    // Bumpers Collision
+                    bumpers.forEach(b => {
+                        let dx = ball.x - b.x;
+                        let dy = ball.y - b.y;
+                        let dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < ball.radius + b.radius) {
+                            let angle = Math.atan2(dy, dx);
+                            let push = 9;
+                            ball.vx = Math.cos(angle) * push + (Math.random() - 0.5) * 2;
+                            ball.vy = Math.sin(angle) * push + (Math.random() - 0.5) * 2;
+                            score += b.points;
+                            scoreDisplay.textContent = String(score).padStart(6, '0');
+                            
+                            // Visual pulse trigger on bumper
+                            b.pulse = 10;
+                        }
+                        if (b.pulse > 0) b.pulse--;
+                    });
+
+                    // Slanted Obstacles Collision
+                    obstacles.forEach(obs => {
+                        // Simple segment collision approximation
+                        let A = { x: obs.x1, y: obs.y1 };
+                        let B = { x: obs.x2, y: obs.y2 };
+                        let abx = B.x - A.x;
+                        let aby = B.y - A.y;
+                        let apx = ball.x - A.x;
+                        let apy = ball.y - A.y;
+                        let abLenSq = abx * abx + aby * aby;
+                        let t = (apx * abx + apy * aby) / abLenSq;
+                        t = Math.max(0, Math.min(1, t));
+                        let cx = A.x + t * abx;
+                        let cy = A.y + t * aby;
+                        let distX = ball.x - cx;
+                        let distY = ball.y - cy;
+                        let distance = Math.sqrt(distX * distX + distY * distY);
+
+                        if (distance < ball.radius) {
+                            let normalX = distX / (distance || 1);
+                            let normalY = distY / (distance || 1);
+                            ball.x = cx + normalX * ball.radius;
+                            ball.y = cy + normalY * ball.radius;
+                            let dot = ball.vx * normalX + ball.vy * normalY;
+                            ball.vx = (ball.vx - 2 * dot * normalX) * 0.75;
+                            ball.vy = (ball.vy - 2 * dot * normalY) * 0.75;
+                        }
+                    });
+
+                    // Flippers Physics & Collision
+                    ['left', 'right'].forEach(side => {
+                        let f = flippers[side];
+                        // Smooth angle interpolation
+                        let targetAngle = f.isPressed ? f.activeAngle : f.restAngle;
+                        f.angle += (targetAngle - f.angle) * 0.4;
+
+                        // Flipper tip calculation
+                        let tipX = f.x + Math.cos(f.angle) * f.length;
+                        let tipY = f.y + Math.sin(f.angle) * f.length;
+
+                        // Segment collision for flipper line
+                        let abx = tipX - f.x;
+                        let aby = tipY - f.y;
+                        let apx = ball.x - f.x;
+                        let apy = ball.y - f.y;
+                        let abLenSq = abx * abx + aby * aby;
+                        let t = (apx * abx + apy * aby) / abLenSq;
+                        t = Math.max(0, Math.min(1, t));
+                        let cx = f.x + t * abx;
+                        let cy = f.y + t * aby;
+                        let distX = ball.x - cx;
+                        let distY = ball.y - cy;
+                        let distance = Math.sqrt(distX * distX + distY * distY);
+
+                        if (distance < ball.radius) {
+                            let normalX = distX / (distance || 1);
+                            let normalY = distY / (distance || 1);
+                            ball.x = cx + normalX * ball.radius;
+                            ball.y = cy + normalY * ball.radius;
+
+                            // Add velocity boost if flipper is moving upwards
+                            let boost = f.isPressed ? 12 : 3;
+                            let dot = ball.vx * normalX + ball.vy * normalY;
+                            ball.vx = (ball.vx - 2 * dot * normalX) + (f.isPressed ? (side === 'left' ? 4 : -4) : 0);
+                            ball.vy = (ball.vy - 2 * dot * normalY) - boost;
+                        }
+                    });
+                }
+            }
+
+            // Render Loop
+            function draw() {
+                ctx.clearRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+
+                // Draw background arcade decorations & grid lines
+                ctx.strokeStyle = 'rgba(99, 102, 241, 0.15)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let i = 0; i < LOGICAL_WIDTH; i += 40) {
+                    ctx.moveTo(i, 0); ctx.lineTo(i, LOGICAL_HEIGHT);
+                }
+                for (let j = 0; j < LOGICAL_HEIGHT; j += 40) {
+                    ctx.moveTo(0, j); ctx.lineTo(LOGICAL_WIDTH, j);
+                }
+                ctx.stroke();
+
+                // Draw Playfield Outer Walls / Borders
+                ctx.strokeStyle = '#6366f1';
+                ctx.lineWidth = 6;
+                ctx.beginPath();
+                ctx.moveTo(20, LOGICAL_HEIGHT - 50);
+                ctx.lineTo(20, 30);
+                ctx.arc(200, 30, 180, Math.PI, 0, false);
+                ctx.lineTo(350, LOGICAL_HEIGHT - 50);
+                ctx.stroke();
+
+                // Draw Launch Lane Divider
+                ctx.beginPath();
+                ctx.moveTo(350, 80);
+                ctx.lineTo(350, LOGICAL_HEIGHT - 80);
+                ctx.strokeStyle = '#475569';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+
+                // Draw Slanted Obstacles
+                ctx.strokeStyle = '#a855f7';
+                ctx.lineWidth = 6;
+                ctx.lineCap = 'round';
+                obstacles.forEach(obs => {
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x1, obs.y1);
+                    ctx.lineTo(obs.x2, obs.y2);
+                    ctx.stroke();
+                });
+
+                // Draw Bumpers
+                bumpers.forEach(b => {
+                    ctx.save();
+                    let pulseRadius = b.radius + (b.pulse || 0);
+                    let grad = ctx.createRadialGradient(b.x, b.y, 2, b.x, b.y, pulseRadius);
+                    grad.addColorStop(0, '#ffffff');
+                    grad.addColorStop(0.4, b.color);
+                    grad.addColorStop(1, '#09090b');
+
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, pulseRadius, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.strokeStyle = '#f8fafc';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    ctx.restore();
+                });
+
+                // Draw Flippers
+                ['left', 'right'].forEach(side => {
+                    let f = flippers[side];
+                    let tipX = f.x + Math.cos(f.angle) * f.length;
+                    let tipY = f.y + Math.sin(f.angle) * f.length;
+
+                    ctx.save();
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 14;
+                    ctx.lineCap = 'round';
+                    ctx.shadowColor = '#38bdf8';
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.moveTo(f.x, f.y);
+                    ctx.lineTo(tipX, tipY);
+                    ctx.stroke();
+                    ctx.restore();
+
+                    // Flipper Pivot Cap
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.beginPath();
+                    ctx.arc(f.x, f.y, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                // Draw Ball
+                if (gameState === 'PLAYING') {
+                    ctx.save();
+                    let ballGrad = ctx.createRadialGradient(ball.x - 3, ball.y - 3, 1, ball.x, ball.y, ball.radius);
+                    ballGrad.addColorStop(0, '#ffffff');
+                    ballGrad.addColorStop(0.3, '#94a3b8');
+                    ballGrad.addColorStop(1, '#1e293b');
+
+                    ctx.fillStyle = ballGrad;
+                    ctx.shadowColor = '#ffffff';
+                    ctx.shadowBlur = 8;
+                    ctx.beginPath();
+                    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // Draw Plunger Spring preview if pulling
+                if (isPullingPlunger) {
+                    ctx.strokeStyle = '#fbbf24';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(370, 500);
+                    ctx.lineTo(370, 500 + plungerPower * 2);
+                    ctx.stroke();
+                }
+            }
+
+            // Main Game Loop
+            function loop() {
+                update();
+                draw();
+                requestAnimationFrame(loop);
+            }
+
+            loop();
+        };
+    </script>
+</body>
+</html>
